@@ -1,3 +1,10 @@
+/*
+ * smokec.h
+ *
+ *  Created on: Nov 18, 2013
+ *      Author: pankaj
+ */
+
 #ifndef libSmokeC_H
 #define libSmokeC_H
 

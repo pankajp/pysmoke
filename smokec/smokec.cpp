@@ -1,3 +1,10 @@
+/*
+ * smokec.cpp
+ *
+ *  Created on: Nov 18, 2013
+ *      Author: pankaj
+ */
+
 #include <smoke.h>
 
 #include "smokec.h"

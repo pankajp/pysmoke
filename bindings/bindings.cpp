@@ -36,7 +36,7 @@ CSmoke qtgui_CSmoke() {
 }
 
 void CSmoke_delete(CSmoke csmoke) {
-    delete csmoke.smoke;
+    delete (Smoke*)csmoke.smoke;
 }
 
 }
