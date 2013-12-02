@@ -12,6 +12,8 @@
 extern "C" {
 #endif
 
+// BEGIN API
+
 void init_qtcore_CSmoke();
 void init_qtgui_CSmoke();
 
@@ -20,6 +22,8 @@ CSmoke qtgui_CSmoke();
 
 void CSmoke_delete(CSmoke);
 
+
+// END API
 
 #ifdef __cplusplus
 }

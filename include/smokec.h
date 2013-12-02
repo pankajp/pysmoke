@@ -12,6 +12,7 @@
 extern "C" {
 #endif
 
+// BEGIN API
 
 /*
  * C/C++ interop data structures.
@@ -235,6 +236,7 @@ char * SmokeBinding_className(CSmokeBinding, Index);
 CSmoke CSmoke_FromBinding(CSmokeBinding binding);
 
 
+// END API
 
 #ifdef __cplusplus
 }
