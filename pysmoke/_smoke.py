@@ -9,8 +9,8 @@ def get_api(content):
     content = content[:content.find('// END API')]
     return content
 
-smokec_api = get_api(open('include/smokec.h').read())
-bindings_api = get_api(open('include/bindings.h').read())
+smokec_api = get_api(open(join(dirname(dirname(__file__)), 'include', 'smokec.h')).read())
+bindings_api = get_api(open(join(dirname(dirname(__file__)), 'include', 'bindings.h')).read())
 
 
 ffi.cdef(smokec_api)

@@ -57,7 +57,7 @@ Index Smoke_idType(CSmoke smoke, const char* t) {
     return SMOKE(smoke)->idType(t);
 }
 
-CModuleIndex Smoke_idClass(CSmoke smoke, const char* c, int external) {
+CModuleIndex Smoke_idClass(CSmoke smoke, const char* c, cbool external) {
     return CMODULEINDEX(SMOKE(smoke)->idClass(c, (bool)external));
 }
 
@@ -86,15 +86,15 @@ CModuleIndex findClass(const char* c) {
     return CMODULEINDEX(Smoke::findClass(c));
 }
 
-int isDerivedFromM(const CModuleIndex classId, const CModuleIndex baseClassId) {
+cbool isDerivedFromM(const CModuleIndex classId, const CModuleIndex baseClassId) {
     return Smoke::isDerivedFrom(MODULEINDEX(classId), MODULEINDEX(baseClassId));
 }
 
-int isDerivedFromI(CSmoke smoke, Index classId, CSmoke baseSmoke, Index baseId) {
+cbool isDerivedFromI(CSmoke smoke, Index classId, CSmoke baseSmoke, Index baseId) {
     return Smoke::isDerivedFrom(SMOKE(smoke), classId, SMOKE(baseSmoke), baseId);
 }
 
-int isDerivedFrom(const char* className, const char* baseClassName) {
+cbool isDerivedFrom(const char* className, const char* baseClassName) {
     return Smoke::isDerivedFrom(className, baseClassName);
 }
 
@@ -127,7 +127,7 @@ public:
     }
 
     virtual bool callMethod(Smoke::Index method, void *obj, Smoke::Stack args, bool isAbstract=false) {
-        return (bool)this->callMethodFn(this->csmokebinding, method, obj, (Stack)args, (int)isAbstract);
+        return (bool)this->callMethodFn(this->csmokebinding, method, obj, (Stack)args, isAbstract);
     }
 
     virtual char * className(Smoke::Index classId) {
@@ -162,8 +162,16 @@ Method * Smoke_methods(CSmoke smoke) {
     return (Method*)SMOKE(smoke)->methods;
 }
 
+Index Smoke_numMethods(CSmoke smoke) {
+    return (Index)SMOKE(smoke)->numMethods;
+}
+
 const char ** Smoke_methodNames(CSmoke smoke) {
     return SMOKE(smoke)->methodNames;
+}
+
+Index Smoke_numMethodNames(CSmoke smoke) {
+    return (Index)SMOKE(smoke)->numMethodNames;
 }
 
 MethodMap * Smoke_methodMaps(CSmoke smoke) {
@@ -182,9 +190,23 @@ Type * Smoke_types(CSmoke smoke) {
     return (Type *)SMOKE(smoke)->types;
 }
 
+Index Smoke_numTypes(CSmoke smoke) {
+    return (Index)SMOKE(smoke)->numTypes;
+}
+
 Class * Smoke_classes(CSmoke smoke) {
     return (Class *)SMOKE(smoke)->classes;
 }
 Index Smoke_numClasses(CSmoke smoke) {
     return SMOKE(smoke)->numClasses;
 }
+Index * Smoke_inheritanceList(CSmoke smoke) {
+    return SMOKE(smoke)->inheritanceList;
+}
+Index * Smoke_ambiguousMethodList(CSmoke smoke) {
+    return SMOKE(smoke)->ambiguousMethodList;
+}
+CastFn Smoke_castFn(CSmoke smoke) {
+    return SMOKE(smoke)->castFn;
+}
+

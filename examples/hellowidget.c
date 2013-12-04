@@ -40,8 +40,8 @@ void deleted(CSmokeBinding binding, Index classId, void *obj) {
 }
 
 
-int callMethod(CSmokeBinding binding, Index method, void *obj,
-    Stack args, int isAbstract)
+cbool callMethod(CSmokeBinding binding, Index method, void *obj,
+    Stack args, cbool isAbstract)
 {
     CSmoke smoke = CSmoke_FromBinding(binding);
     Method meth = Smoke_methods(smoke)[method];

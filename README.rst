@@ -11,9 +11,8 @@ The SmokeC project aims to provide a C API for smoke library so
 that it is simpler to interface directlty with other languages
 which provide a C API without having to write C++ code.
 
-For example, it should be possible to directly use this library from
-python via ctypes or CFFI without having to write separate C++ shim
-to bridge the smoke C++ API with python's C API.
+The initial goal of the SmokeC project is to generate python bindings
+for qt using smoke, which reside in the pysmoke python package.
 
 License
 -------

@@ -14,6 +14,8 @@ extern "C" {
 
 // BEGIN API
 
+typedef unsigned char cbool;
+
 /*
  * C/C++ interop data structures.
  */
@@ -22,7 +24,7 @@ extern "C" {
 // I don't want to, though. -aw
 typedef union StackItem {
     void* s_voidp;
-    int s_bool;
+    cbool s_bool;
     signed char s_char;
     unsigned char s_uchar;
     short s_short;
@@ -60,7 +62,7 @@ typedef enum ClassFlags {
  */
 typedef struct Class {
     const char *className;    // Name of the class
-    int external;        // Whether the class is in another module
+    cbool external;        // Whether the class is in another module
     Index parents;        // Index into inheritanceList
     ClassFn classFn;    // Calls any method in the class
     EnumFn enumFn;        // Handles enum pointers
@@ -178,13 +180,20 @@ typedef struct CModuleIndex {
  */
 
 Method * Smoke_methods(CSmoke smoke);
+Index Smoke_numMethods(CSmoke smoke);
 const char ** Smoke_methodNames(CSmoke smoke);
+Index Smoke_numMethodNames(CSmoke smoke);
 MethodMap * Smoke_methodMaps(CSmoke smoke);
 Index Smoke_numMethodMaps(CSmoke smoke);
 Index * Smoke_argumentList(CSmoke smoke);
 Type * Smoke_types(CSmoke smoke);
+Index Smoke_numTypes(CSmoke smoke);
 Class *Smoke_classes(CSmoke smoke);
 Index Smoke_numClasses(CSmoke smoke);
+Index * Smoke_inheritanceList(CSmoke smoke);
+Index * Smoke_ambiguousMethodList(CSmoke smoke);
+CastFn Smoke_castFn(CSmoke smoke);
+
 
 /*
  * Smoke Methods
@@ -196,7 +205,7 @@ void * Smoke_cast(CSmoke smoke, void *ptr, Index from, Index to);
 const char * Smoke_className(CSmoke smoke, Index classId);
 int Smoke_leg(CSmoke smoke, Index a, Index b);
 Index Smoke_idType(CSmoke smoke, const char *t);
-CModuleIndex Smoke_idClass(CSmoke smoke, const char *c, int external);
+CModuleIndex Smoke_idClass(CSmoke smoke, const char *c, cbool external);
 CModuleIndex Smoke_idMethodName(CSmoke smoke, const char *m);
 CModuleIndex Smoke_findMethodName(CSmoke smoke, const char *c, const char *m);
 CModuleIndex Smoke_idMethod(CSmoke smoke, Index c, Index name);
@@ -207,9 +216,9 @@ CModuleIndex Smoke_findMethod(CSmoke smoke, const char *c, const char *name);
  * Static functions
  */
 CModuleIndex findClass(const char *c);
-int isDerivedFromM(const CModuleIndex classId, const CModuleIndex baseClassId);
-int isDerivedFromI(CSmoke smoke, Index classId, CSmoke baseSmoke, Index baseId);
-int isDerivedFrom(const char *className, const char *baseClassName);
+cbool isDerivedFromM(const CModuleIndex classId, const CModuleIndex baseClassId);
+cbool isDerivedFromI(CSmoke smoke, Index classId, CSmoke baseSmoke, Index baseId);
+cbool isDerivedFrom(const char *className, const char *baseClassName);
 
 
 
@@ -222,7 +231,7 @@ typedef struct CSmokeBinding {
 } CSmokeBinding;
 
 typedef void (*SmokeBinding_DeletedFn)(CSmokeBinding, Index, void *);
-typedef int (*SmokeBinding_CallMethodFn)(CSmokeBinding, Index, void*, Stack, int);
+typedef cbool (*SmokeBinding_CallMethodFn)(CSmokeBinding, Index, void*, Stack, cbool);
 typedef char* (*SmokeBinding_ClassNameFn)(CSmokeBinding, Index);
 
 CSmokeBinding SmokeBinding_new(CSmoke smoke,
