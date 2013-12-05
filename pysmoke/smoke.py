@@ -1,17 +1,19 @@
 from __future__ import print_function
 
+import sys
+
 from ._smoke import ffi, smokec, bindings
 
 
 def Args(n):
-    return ffi.new('StackItem[%d]'%n)
+    return ffi.new('StackItem[%d]' % n)
 
 def CModuleIndex(smokec, index):
     return ffi.new('CModuleIndex*', [smokec, index])[0]
 
 def get_args(*args):
     cargs = Args(len(args)+1)
-    for i,arg in enumerate(args):
+    for i, arg in enumerate(args):
         cargs[i+1].s_voidp = arg
     return cargs
 
@@ -25,8 +27,12 @@ def method_call_callback(func):
 def class_name_callback(func):
     return ffi.callback('char*(CSmokeBinding,Index)', func)
 
-def pystring(charp):
-    return ffi.string(charp).decode('ascii')
+if sys.version_info[0] > 2:
+    def pystring(charp):
+        return ffi.string(charp).decode('ascii')
+else:
+    def pystring(charp):
+        return ffi.string(charp)
 
 
 class Type(object):
@@ -60,7 +66,7 @@ class Type(object):
         return bool(self._type & smokec.tf_const)
 
     def __str__(self):
-        return 'Type("%s")'%(self.name)
+        return 'Type("%s")' % (self.name)
 
     __repr__ = __str__
 
@@ -71,7 +77,6 @@ class ClassDef(object):
         self.binding = binding
         self._mi = moduleindex
         self._smoke = moduleindex.smoke
-        #print binding.smoke.csmoke == self._smoke, binding.smoke.csmoke, self._smoke
         self._index = moduleindex.index
         self._classdef = smokec.Smoke_classes(self._smoke)[self._index]
 
@@ -97,6 +102,8 @@ class ClassDef(object):
         while bases_list[baseidx] != 0:
             cmi = CModuleIndex(csmoke, bases_list[baseidx])
             cls = ClassDef(self.binding, cmi)
+            if cls.is_external:
+                cls = self.binding.find_class(cls.name)
             bases.append(cls)
             baseidx += 1
         return bases
@@ -113,28 +120,35 @@ class ClassDef(object):
                 # should not be None
                 if isinstance(submethods, MethodDef):
                     methods.append(submethods)
-                else:
+                elif submethods is not None:
                     methods.extend(submethods)
+                else:
+                    raise ValueError('Not such method: %s' % name)
                 if not ambiguous and len(methods) > 1:
                     raise ValueError('Ambiguous method overload: %s' % name)
             return methods
-        name = name.encode('ascii')
-        methmnameid = smokec.Smoke_idMethodName(self._smoke, name)
-        if methmnameid.index == 0:
-            # No such method
-            return None
-        methid = smokec.Smoke_findMethodM(self._smoke, self._mi, methmnameid)
-        if methid.index > 0:
-            return MethodDef(self.binding,
-                             CModuleIndex(methid.smoke,
-                                          smokec.Smoke_methodMaps(methid.smoke)[methid.index].method))
-        elif methid.index < 0:
+        mmethid = smokec.Smoke_findMethod(self._smoke, self.name.encode('ascii'), name.encode('ascii'))
+        methodmap = smokec.Smoke_methodMaps(mmethid.smoke)
+        mmap = methodmap[mmethid.index]
+        classes = smokec.Smoke_classes(mmethid.smoke)
+        if mmap.method > 0:
+            if classes[mmap.classId].external:
+                cls = self.binding.find_class(pystring(classes[mmap.classId].name))
+                return cls.find_method(name)
+            return MethodDef(self.binding.get_binding(mmethid.smoke.smoke),
+                             CModuleIndex(mmethid.smoke,
+                                          mmap.method))
+        elif mmap.method < 0:
             if ambiguous:
-                aidx = -methid.index
+                aidx = -mmap.method
                 amethods = smokec.Smoke_ambiguousMethodList(self._smoke)
                 methods = []
                 while amethods[aidx] != 0:
-                    methods.append(MethodDef(self.binding, amethods[aidx]))
+                    methidx = amethods[aidx]
+                    methods.append(MethodDef(self.binding.get_binding(mmethid.smoke.smoke),
+                                             CModuleIndex(mmethid.smoke,
+                                                          methidx)))
+                    aidx += 1
                 return methods
             else:
                 raise ValueError('Ambiguous method overload: %s' % name)
@@ -142,17 +156,21 @@ class ClassDef(object):
             return None
 
     def find_munged_names(self, name):
-        nameid = smokec.Smoke_idMethodName(name)
+        namemid = smokec.Smoke_idMethodName(self._smoke, name.encode('ascii'))
+        nameid = namemid.index
+        if nameid == 0:
+            return []
         mmaps = smokec.Smoke_methodMaps(self._smoke)
         methodnames = smokec.Smoke_methodNames(self._smoke)
         mnames = set()
-        all_base_ids = set(bcls._index for bcls in self.bases)
-        all_base_ids.add(self._index)
         for i in range(1, smokec.Smoke_numMethodMaps(self._smoke)):
             mmap = mmaps[i]
-            if mmap.name == nameid and mmap.classId in all_base_ids:
-                mname = pystring(methodnames[mmap.name])
+            mname = pystring(methodnames[mmap.name])
+            if mmap.classId == self._index and mname.rstrip('$#?') == name:
                 mnames.add(mname)
+
+        for base in self.bases:
+            mnames.update(base.find_munged_names(name))
         return list(mnames)
 
     def iter_methods(self, inherited=True):
@@ -170,12 +188,10 @@ class ClassDef(object):
                     yield meth
 
     def call(self, meth, inst, *args, **kwds):
-        print('calling: %s::%s()' % (self.name, meth.name))
         cargs = get_args(*(args+(ffi.NULL, ffi.NULL)))
         self._classdef.classFn(meth._methoddef.method, inst if inst is not None else ffi.NULL, cargs)
         ret = cargs[0]
-        if meth.is_ctor or meth.is_explicit:
-            print('constructor: setting binding')
+        if meth.is_ctor:
             # Constructor.
             # method index 0 is always "set smoke binding" - needed for
             # virtual method callbacks etc.
@@ -207,7 +223,8 @@ class ClassDef(object):
         return self._classdef.flags & smokec.cf_undefined
 
     def __str__(self):
-        return 'ClassDef(%s.%s)'%(self.binding.name, self.binding.class_name(self))
+        return 'ClassDef(%s.%s)' % (self.binding.name,
+                                    self.binding.class_name(self))
 
     __repr__ = __str__
 
@@ -217,14 +234,9 @@ class MethodDef(object):
         self.binding = binding
         self._mi = moduleindex
         self._smoke = moduleindex.smoke
-        #assert binding.smoke.csmoke.smoke == self._smoke.smoke, (binding.smoke.csmoke.smoke, self._smoke.smoke)
         self._index = moduleindex.index
         self._methoddef = smokec.Smoke_methods(self._smoke)[self._index]
-        print('meth:', self._index, pystring(smokec.Smoke_methodNames(self._smoke)[self._methoddef.name]))
-        if self._methoddef.classId < 0:
-            print('no class', self.name)
-        else:
-            self._class = ClassDef(self.binding, CModuleIndex(self._smoke, self._methoddef.classId))
+        self._class = ClassDef(self.binding, CModuleIndex(self._smoke, self._methoddef.classId))
 
     @property
     def cls(self):
@@ -318,7 +330,10 @@ class MethodDef(object):
         return Type(self._smoke, smokec.Smoke_types(self._smoke)[self._methoddef.ret])
 
     def __str__(self):
-        return 'MethodDef(%s.%s(%s))'%(self.binding.class_name(self.cls), self.name, self.args)
+        return 'MethodDef(%s.%s(%s))' % (self.binding.class_name(self.cls),
+                                         self.name, self.args)
+
+    __repr__ = __str__
 
 
 class Smoke(object):
@@ -336,8 +351,11 @@ class Smoke(object):
 
 
 class Binding(object):
+    bindings_map = {}
+
     def __init__(self, smoke):
         self.smoke = smoke
+        self.bindings_map[smoke.csmoke.smoke] = self
         self.name = self.smoke.name
         self._c_handlers = [delete_callback(self._on_delete),
                             method_call_callback(self._on_method_call),
@@ -359,26 +377,38 @@ class Binding(object):
 
     def _on_method_call(self, csmokebinding, methidx, obj, args, is_abstract):
         cmi = CModuleIndex(smokec.CSmoke_FromBinding(csmokebinding), methidx)
-        meth = MethodDef(self, cmi)
+        meth = MethodDef(self.bindings_map[cmi.smoke.smoke], cmi)
         return self.method_call_handler(meth.cls, obj, meth, args, is_abstract)
 
     def method_call_handler(self, cls, obj, method, args, is_abstract):
-        print('method_call: %s::%s()' %( cls.name, method.name))
+        print('method_call: %s::%s()' % (cls.name, method.name))
         return 0
 
     def _on_class_name(self, csmokebinding, clsid):
         cmi = CModuleIndex(smokec.CSmoke_FromBinding(csmokebinding), clsid)
         cls = ClassDef(self, cmi)
-        return self.class_name_handler(self, cmi)
+        return self.class_name_handler(cls)
 
     def class_name_handler(self, cls):
         return cls.name.replace('::', '.')
 
     class_name = class_name_handler
 
-    def find_class(self, class_name):
+    @classmethod
+    def get_binding(cls, smokep):
+        if smokep in cls.bindings_map:
+            return cls.bindings_map[smokep]
+        smokec = ffi.new('CSmoke*', [smokep])[0]
+        binding = cls(Smoke(smokec))
+        cls.bindings_map[smokep] = binding
+        return binding
+
+    @classmethod
+    def find_class(cls, class_name):
+        """ Handles classes defined in different modules """
         class_name = class_name.encode('ascii')
-        return ClassDef(self, smokec.findClass(class_name))
+        clsid = smokec.findClass(class_name)
+        return ClassDef(cls.get_binding(clsid.smoke.smoke), clsid)
 
     def iter_classes(self):
         csmoke = self.smoke.csmoke
