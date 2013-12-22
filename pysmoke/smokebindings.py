@@ -1,11 +1,183 @@
-from .smoke import Smoke, Binding, smokec, bindings
+from __future__ import print_function, absolute_import
 
+import importlib
+
+from .smoke import Smoke, Binding, smokec, bindings, Type, TypedValue
 
 
 def qtcore_smoke():
-    return Binding(Smoke(bindings.qtcore_CSmoke()))
+    return Binding.get_binding(bindings.qtcore_CSmoke().smoke)
 
 
 def qtgui_smoke():
-    return Binding(Smoke(bindings.qtgui_CSmoke()))
+    return Binding.get_binding(bindings.qtgui_CSmoke().smoke)
+
+
+
+binding_map = {'qtcore':qtcore_smoke,
+               'qtgui':qtgui_smoke,
+               }
+
+
+class SmokeMethodDescr(object):
+    __slots__ = ('cls', 'name', 'static')
+
+    def __init__(self, cls, meth):
+        self.cls = cls
+        self.name = meth
+        self.static = cls.__classdef__.is_static_method(meth)
+
+    def __get__(self, obj, typ=None):
+        call = typ.__classdef__.call
+        print('get methdescr:', obj, typ, self.cls, self.name, self.static)
+        if self.static:
+            def method(*args, **kwds):
+                # FIXME: check static method.
+                ret = call(self.name, typ, args, kwds)
+                return ret
+        elif obj is None:
+            # unbound method attached to class
+            def method(inst, *args, **kwds):
+                # FIXME: check static method.
+                if inst == typ:
+                    ret = call(self.name, inst, args, kwds)
+                else:
+                    ret = call(self.name, inst.__cval__, args, kwds)
+                    print('rett:', ret, type(ret), TypedValue, type(ret) == TypedValue)
+                    if isinstance(ret, TypedValue):
+                        if ret.typ.cls is not None:
+                            retcls = SmokeMetaClass.get_class(ret.typ.cls.name, ret.typ.cls.binding)
+                            print('retcls:', retcls)
+                            retobj = retcls.__new__()
+                            retobj.__cval__ = ret
+                            ret = retobj
+                print('ret:', self.name, ret, inst, args)
+                return ret
+        else:
+            # bound method attached to obj
+            def method(*args, **kwds):
+                ret = call(self.name, obj, args, kwds)
+                return ret
+
+        method.__name__ = self.name
+        return method
+
+
+class SmokeMetaClass(type):
+    __classes_map__ = {}
+
+    def __init__(cls, name, bases, attrs):
+        print('creating cls', cls.__name__, name)
+        cls.__classdef__ = Binding.find_class(name)
+
+    @staticmethod
+    def _get_method(cls, name, static=False):
+        call = cls.__classdef__.call
+        def method(inst, *args, **kwds):
+            ret = call(name, inst, args, kwds)
+            return ret
+        method.__name__ = cls.__name__ + '.' + name
+        return method
+
+    def __getattr__(cls, name):
+        #clsdef = super(SmokeClass, self).__getattribute__('__classdef__')
+        print('SMC getattr:', cls, name)
+        ret = SmokeMethodDescr(cls, name)
+        setattr(cls, name, ret)
+        return getattr(cls, name)
+
+    def y__call__(cls, *args, **kwds):
+        """ Constructor method of the class """
+        return getattr(cls, cls.__classdef__.name)(*args, **kwds)
+
+    @classmethod
+    def get_class(metacls, name, binding):
+        if name in metacls.__classes_map__:
+            return metacls.__classes_map__[name]
+        else:
+            ret = metacls(name, (SmokeClass,), {})
+            ret.__module__ += '.' + binding.name
+            print('get_class:', name, ret, ret.__module__)
+            metacls.__classes_map__[name] = ret
+            return ret
+
+    @classmethod
+    def wrap_cdata(self, typ, cdata):
+        ret = typ.cls.__new__(typ.cls)
+        return ret
+
+
+SmokeSuperClass = SmokeMetaClass('SmokeSuperClass', (object,), {
+    '__doc__':''' Base class for Smoke classes.
+                 
+                 Only purpose is working around metaclass declaration
+                 difference between python 2 and python 3
+                 '''})
+
+
+class SmokeClass(SmokeSuperClass):
+    """ Wrapper classes should not maintain state apart from __cval__.
+    User subclasses can do as they please.
+    """
+    def __init__(self, *args, **kwds):
+        cls = type(self)
+        cval = getattr(cls, cls.__classdef__.name)(cls, *args, **kwds)
+        print('cval:', cval, self, args, kwds)
+        self.__cval__ = cval
+
+    def __getattr__(self, name):
+        print('SC getattr:', self, name)
+        cls = type(self)
+        ret = getattr(cls, name)
+        setattr(cls, name, ret)
+        return getattr(self, name)
+
+
+
+class SmokeClassDescr(object):
+    __slots__ = ()
+
+    def __get__(self, obj, typ=None):
+        if obj is None:
+            return self
+        else:
+            pass
+
+
+class SmokeModule(object):
+    __binding_map__ = {}
+    def __init__(self, binding):
+        self.__binding__ = binding
+
+    def __getattr__(self, name):
+        binding = self.__binding__
+        # TODO: Return overridden class
+        print('cls_mod', __package__)
+        try:
+            cls_mod = importlib.import_module('.%s.%s' % (self.__binding__.name, name),
+                                              __package__)
+            cls_mod.__package__ = __package__ + '.' + self.__binding__.name
+        except ImportError as e:
+            print('e')
+            return SmokeMetaClass.get_class(name, binding)
+        else:
+            cls = getattr(cls_mod, name)
+            cls.__module__ = cls_mod.__package__
+            return cls
+
+    @classmethod
+    def get_module(cls, name):
+        if name in cls.__binding_map__:
+            return cls.__binding_map__[name]
+        else:
+            binding = binding_map[name]()
+            ret = cls(binding)
+            cls.__binding_map__[name] = ret
+            return ret
+
+
+
+QtCore = SmokeModule.get_module('qtcore')
+QtGui = SmokeModule.get_module('qtgui')
+
 

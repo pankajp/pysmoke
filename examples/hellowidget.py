@@ -5,7 +5,8 @@
 #      Author: pankaj
 #
 
-from __future__ import print_function
+from __future__ import print_function, absolute_import
+
 
 from pysmoke.smoke import Args, ffi
 from pysmoke.smokebindings import qtcore_smoke, qtgui_smoke

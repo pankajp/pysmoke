@@ -1,7 +1,8 @@
+from __future__ import print_function, absolute_import
 
 import unittest
 
-from pysmoke.smoke import ffi
+from pysmoke.smoke import ffi, Type, TypedValue
 from pysmoke.smokebindings import qtcore_smoke, qtgui_smoke
 
 
@@ -11,6 +12,10 @@ qapp = qtgui.find_class('QApplication').find_method('QApplication$?').call(
     None,
     ffi.new('int*', 1),
     ffi.new('char*[]', [ffi.new('char[]', b'test_smoke')]))
+
+qinst = qtgui.find_class('QCoreApplication').find_method('instance').call(None)
+
+print(qapp, qinst)
 
 def dbg():
     from IPython.core.debugger import Tracer; Tracer()()
@@ -59,6 +64,31 @@ class ClassDefTestCase(unittest.TestCase):
         self.assertEqual(m.name, methname)
         self.assertEqual(m.cls.name, 'QObject')
         self.assertNotEqual(m.binding, cls.binding)
+
+    def test_find_method_by_args(self):
+        """ Find method using specified args """
+        methname = 'disconnect'
+        cls = qtgui.find_class('QObject')
+        #dbg()
+        args = []
+        m = cls.find_method_by_args(methname, args)
+        self.assertTrue(m)
+        self.assertEqual(m.name, methname)
+        self.assertEqual(m.cls.name, 'QObject')
+        self.assertEqual(len(m.args), len(args))
+        #self.assertNotEqual(m.binding, cls.binding)
+
+        methname = 'disconnect'
+        cls = qtgui.find_class('QObject')
+        #dbg()
+        args = ['foo']
+        m = cls.find_method_by_args(methname, args)
+        self.assertTrue(m)
+        self.assertEqual(m.name, methname)
+        self.assertEqual(m.cls.name, 'QObject')
+        self.assertEqual(len(m.args), len(args))
+        #self.assertNotEqual(m.binding, cls.binding)
+
 
 class MethodDefTestCase(unittest.TestCase):
     def setUp(self):
