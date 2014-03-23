@@ -30,13 +30,11 @@ The build process also needs setuptools, cmake and a decent C++ compiler.
 Installing
 ~~~~~~~~~~
 
-Currently, only in-tree development installation is supported.
+Currently, only in-tree development installation is supported::
 
-```
-cmake .
-make
-python setup.py develop
-```
+   cmake .
+   make
+   python setup.py develop
 
 In future we may improve the installation process to be more flexible
 and provide binary eggs for various platforms.
