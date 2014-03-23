@@ -39,10 +39,16 @@ class SmokeMethodDescr(object):
             # unbound method attached to class
             def method(inst, *args, **kwds):
                 # FIXME: check static method.
+                sargs = []
+                for arg in args:
+                    if isinstance(arg, SmokeClass):
+                        sargs.append(arg.__cval__)
+                    else:
+                        sargs.append(arg)
                 if inst == typ:
-                    ret = call(self.name, inst, args, kwds)
+                    ret = call(self.name, inst, sargs, kwds)
                 else:
-                    ret = call(self.name, inst.__cval__, args, kwds)
+                    ret = call(self.name, inst.__cval__, sargs, kwds)
                     print('rett:', ret, type(ret), TypedValue, type(ret) == TypedValue)
                     if isinstance(ret, TypedValue):
                         if ret.typ.cls is not None:

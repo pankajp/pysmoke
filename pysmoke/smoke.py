@@ -1,9 +1,20 @@
 from __future__ import print_function, absolute_import
 
 import sys
+import warnings
 
-from ._smoke import ffi, smokec, bindings, pystring
+from ._smoke import ffi, smokec, bindings, pystring, dbg, charp
 from . import marshal
+
+
+class NotImplementedWarning(RuntimeWarning):
+    pass
+
+
+def not_implemented(msg):
+    #dbg()
+    warnings.warn(RuntimeWarning(msg), stacklevel=3)
+
 
 def Args(n):
     return ffi.new('StackItem[%d]' % n)
@@ -14,9 +25,15 @@ def CModuleIndex(smokec, index):
 def get_args(*args):
     cargs = Args(len(args)+1)
     for i, arg in enumerate(args):
-        cargs[i+1].s_voidp = arg
+        if isinstance(arg, ffi.CData) and ffi.typeof(arg).item.cname.startswith('StackItem'):
+            cargs[i+1].s_double = arg.s_double
+        else:
+            cargs[i+1] = [arg]
     return cargs
 
+def set_stackitem_value(stackitem, obj, typ):
+    # FIXME: set the stackitem's correct value based on Type typ
+    pass
 
 def delete_callback(func):
     return ffi.callback('void(CSmokeBinding,Index,void*)', func)
@@ -29,18 +46,37 @@ def class_name_callback(func):
 
 
 class Type(object):
+    _type_id_map = ffi.typeof('TypeId').elements
+    _stacktype_map = ffi.typeof('TypeFlags').elements
+
     def __init__(self, binding, ctype):
         self.binding = binding
-        self._smoke = binding.smoke
+        self._smoke = binding.smoke.csmoke
         self._type = ctype
 
     @property
     def name(self):
-        return pystring(self._type.name)
+        cname = self._type.name
+        if cname != ffi.NULL:
+            return pystring(self._type.name)
+        else:
+            return ''
+
+    @property
+    def typ_name(self):
+        name = self.name
+        if name.startswith('const '):
+            name = name[len('const '):]
+        name = name.replace('&' ,'')
+        name = name.replace('*', '')
+        return name.strip()
 
     @property
     def cls(self):
         if self._type.classId < 0:
+            return None
+        elif self.type_id_name == 't_enum':
+            not_implemented('Enum classes: %s'%self)
             return None
         elif self._type.classId == 0:
             print('Bindings for class:', self.name, 'not in smoke; marshallers have to be written')
@@ -53,10 +89,22 @@ class Type(object):
         return self._type.flags & smokec.tf_elem
 
     @property
+    def type_id_name(self):
+        return self._type_id_map[self.type_id]
+
+    @property
     def stacktype(self):
-        return {smokec.tf_stack:'stack',
-                smokec.tf_ptr:'ptr',
-                smokec.tf_ref:'ref'}[self._type.flags & 0x30]
+        return self._stacktype_map[self._type.flags & 0x30][3:]
+
+    @property
+    def stackitem_name(self):
+        return 's' + self.type_id_name[1:]
+
+    def get_from_stackitem(self, si):
+        return getattr(si, self.stackitem_name)
+
+    def set_to_stackitem(self, si, obj):
+        return setattr(si, self.stackitem_name, obj)
 
     @property
     def is_const(self):
@@ -64,10 +112,29 @@ class Type(object):
 
     @classmethod
     def from_cls(cls, klass):
-        ctype = ffi.new('Type*', [ffi.new('char[]', klass.name.encode('ascii')+b'*'),
-                                  klass._index,
-                                  smokec.t_class + smokec.tf_ptr])
-        return cls(klass.binding, ctype)
+        #ctype = smokec.Smoke_types(klass._smoke)[
+            #smokec.Smoke_idType(klass._smoke,
+                                #ffi.new('char[]', 
+                                        #klass.name.encode('ascii')+b'*'))]
+
+        ctype = ffi.new('Type*')
+        cname = ffi.new('char[]', klass.name.encode('ascii')+b'*')
+        ctype.name = cname
+        ctype.classId = klass._index
+        ctype.flags = smokec.t_class | smokec.tf_ptr
+        #ctype.flags |= smokec.tf_const if is_const else 0
+        #return ctype
+        typ = cls(klass.binding, ctype)
+        #print(cname, pystring(ctype.name), typ.name)
+        typ._cname = cname
+        return typ
+
+    @classmethod
+    def iter_types(cls, binding):
+        num_types = smokec.Smoke_numTypes(binding.smoke.csmoke)
+        smoke_types = smokec.Smoke_types(binding.smoke.csmoke)
+        for i in range(num_types):
+            yield cls(binding, smoke_types[i])
 
     def __str__(self):
         return 'Type("%s")' % (self.name)
@@ -109,6 +176,10 @@ class ClassDef(object):
         return bool(self._classdef.external)
 
     @property
+    def typ(self):
+        return Type.from_cls(self)
+
+    @property
     def bases(self):
         csmoke = self._smoke
         bases = []
@@ -124,6 +195,10 @@ class ClassDef(object):
         return bases
 
     def is_subclassof(self, other):
+        if isinstance(other, Type):
+            other = other.cls
+        if not isinstance(other, ClassDef):
+            return False
         return smokec.isDerivedFromI(self._smoke, self._index, other._smoke, other._index)
 
     def find_method(self, name, ambiguous=True, munged=True):
@@ -177,10 +252,10 @@ class ClassDef(object):
         # FIXME: Find best matching method instead of first match
         match_score = -1
         for method in self.iter_methods():
-            print(method.name, name)
+            #print(method.name, name)
             if method.name == name:
                 meth_args = method.args
-                print(len(meth_args), len(args))
+                #print(len(meth_args), len(args))
                 if len(meth_args) != len(args):
                     continue
                 for i, arg in enumerate(args):
@@ -235,25 +310,34 @@ class ClassDef(object):
         return meth.call(inst, *args, **kwds)
 
     def call_method(self, meth, inst, args, kwds):
-        print('calling:', meth, meth.cls._classdef, meth._methoddef, meth.binding, meth.cls.binding)
+        print('calling:', inst, meth, meth.cls._classdef, meth._methoddef, meth.binding, meth.cls.binding)
         convargs = []
         for i, arg in enumerate(args):
             convargs.append(self.binding.from_py(arg, meth.args[i]))
-        cargs = get_args(*(args+(ffi.NULL, ffi.NULL)))
+        cargs = get_args(*(convargs+[ffi.NULL, ffi.NULL]))
         if meth.is_static or meth.is_ctor:
             cinst = ffi.NULL
         else:
-            cinst = self.binding.from_py(inst, Type.from_cls(self))
+            cinst = self.binding.from_py(inst, Type.from_cls(meth.cls))
+        if isinstance(cinst, TypedValue):
+            cinst = cinst.value
+        if isinstance(cinst, ffi.CData):
+            if 'StackItem' in ffi.typeof(cinst).cname:
+                cinst = cinst.s_voidp
+        print('cinst', cinst)
         meth.cls._classdef.classFn(meth._methoddef.method, cinst, cargs)
         ret = cargs[0]
         if meth.is_ctor:
             # Constructor.
             # method index 0 is always "set smoke binding" - needed for
             # virtual method callbacks etc.
-            cargs[1].s_voidp = meth.cls.binding.cbinding.binding
+            cargs[1].s_voidp = self.binding.cbinding.binding
             meth.cls._classdef.classFn(0, ret.s_voidp, cargs)
         print('return from:', meth, ret.s_voidp)
-        return self.binding.to_py(ret.s_voidp, meth.rettype)
+        ret_val = ret.s_double
+        ret = ffi.new('StackItem*')
+        ret.s_double = ret_val
+        return self.binding.to_py(ret, meth.rettype)
 
     @property
     def has_ctor(self):
@@ -320,7 +404,7 @@ class MethodDef(object):
 
     @property
     def rettype(self):
-        return Type(self._smoke, smokec.Smoke_types(self._smoke)[self._methoddef.ret])
+        return Type(self.binding, smokec.Smoke_types(self._smoke)[self._methoddef.ret])
 
     def call(self, inst, *args, **kwds):
         return self.cls.call_method(self, inst, args, kwds)
@@ -385,6 +469,15 @@ class MethodDef(object):
     def is_explicit(self):
         return self._methoddef.flags & smokec.mf_explicit
 
+    @property
+    def typ(self):
+        return Type.from_cls(cls)
+
+    @classmethod
+    def iter_classes(cls, binding):
+        for cls in binding.iter_classes:
+            yield cls
+
     def __str__(self):
         return 'MethodDef(%s.%s%s)' % (self.binding.class_name(self.cls),
                                          self.name, self.args)
@@ -393,10 +486,15 @@ class MethodDef(object):
 
 
 class Converter(object):
+    """ Converter should only deal with StackItems on C level. """
     _obj_map = {}
 
     def __init__(self, binding):
         self.binding = binding
+
+    def _get_converter(self, typ):
+        conv = getattr(marshal, typ.typ_name, None)
+        return conv
 
     def is_compatible_type(self, required, given):
         if isinstance(given, TypedValue):
@@ -421,42 +519,54 @@ class Converter(object):
                                 'char*':(str),
                                 }.get(required.name, ())):
             return True
+        else:
+            conv = self._get_converter(required)
+            if conv and conv.is_compatible(given):
+                return True
         return False
 
     def to_py(self, obj, typ):
+        """ obj must be of type StackItem """
         primitive = {
-                     smokec.t_bool:bool,
-                     smokec.t_char:int,
-                     smokec.t_uchar:int,
-                     smokec.t_short:int,
-                     smokec.t_ushort:int,
-                     smokec.t_int:int,
-                     smokec.t_uint:int,
-                     smokec.t_long:int,
-                     smokec.t_ulong:int,
-                     smokec.t_float:float,
-                     smokec.t_double:float,
-                     smokec.t_enum:int,
+                     smokec.t_bool:'s_bool',
+                     smokec.t_char:'s_int',
+                     smokec.t_uchar:'s_int',
+                     smokec.t_short:'s_int',
+                     smokec.t_ushort:'s_int',
+                     smokec.t_int:'s_int',
+                     smokec.t_uint:'s_int',
+                     smokec.t_long:'s_int',
+                     smokec.t_ulong:'s_int',
+                     smokec.t_float:'s_float',
+                     smokec.t_double:'s_float',
+                     smokec.t_enum:'s_int',
                      }.get(typ.type_id)
         if primitive:
-            return primitive(obj)
+            try:
+                return getattr(obj, primitive)
+            except Exception as e:
+                print(e)
+                dbg()
         if isinstance(obj, TypedValue):
             # FIXME: error if obj.typ not derived from typ
             if obj.typ._type.classId == 0:
-                print('FIXME: %s not included in smoke, bindings to be written'%
+                print('FIXME: to_py: %s not included in smoke, bindings to be written'%
                       obj.typ.name)
             return obj
         if typ._type.classId == 0:
-            conv = getattr(marshal, typ.name, None)
+            conv = self._get_converter(typ)
             if conv is None:
-                print('FIXME: %s not included in smoke, bindings to be written'%
-                      typ.name)
+                print('FIXME: to_py: %s not included in smoke, bindings to be written'%
+                      typ.typ_name)
             else:
                 return conv.to_py(obj)
-        print('could not convert to py:', obj, typ)
+        #from IPython.core.debugger import Tracer; Tracer()()
+        #print('could not convert to py:', obj, typ)
+        not_implemented('could not convert to py: %s, %s'%( obj, typ))
         return TypedValue(obj, typ)
 
     def from_py(self, obj, typ):
+        """ return value be of type StackItem """
         primitive = {
                      smokec.t_bool:'CBool',
                      smokec.t_char:'char',
@@ -476,11 +586,12 @@ class Converter(object):
         if obj is None:
             return ffi.NULL
         if typ._type.classId == 0:
-            conv = getattr(marshal, typ.name, None)
+            conv = getattr(marshal, typ.typ_name, None)
             if conv is None:
-                print('FIXME: %s not included in smoke, bindings to be written'%
+                print('FIXME: from_py: %s not included in smoke, bindings to be written'%
                       typ.name)
             else:
+                #return conv.from_py(typ.get_from_stackitem(obj))
                 return conv.from_py(obj)
         if isinstance(obj, TypedValue):
             # FIXME: cast/check compatibility of the two types

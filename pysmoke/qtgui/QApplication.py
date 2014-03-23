@@ -13,7 +13,17 @@ class QApplication(SmokeMetaClass.get_class('QCoreApplication',
         args = Args(3)
         argn = ffi.new('int[1]', [len(argv)])
         args[1].s_voidp = argn
-        argv = [ffi.new('char[]', arg.encode('ascii')) for arg in argv]
-        argc = ffi.new('char*[]', argv)
-        args[2].s_voidp = argc
-        super(QApplication, self).__init__(argn, argc)
+        self._cargn = argn
+        self._args = [arg.encode('ascii') for arg in argv]
+        self._cargs = [ffi.new('char[]', arg) for arg in self._args]
+        self._cargv = ffi.new('char *[]', self._cargs)
+        args[2].s_voidp = self._cargv
+        # This is calling QCoreApplication() instead of QApplication()
+        #super(QApplication, self).__init__(argn, self._cargv)
+        self.__cval__ = self.__classdef__.call('QApplication', None, [argn, self._cargv], {})
+        type(self)._instance = self
+
+    @classmethod
+    def instance(cls):
+        return cls._instance
+

@@ -11,14 +11,16 @@ print('QApplication:', QApplication, QApplication.__bases__, QApplication.__mro_
 
 qtgui = QtGui.__binding__
 
-def dbg():
-    from IPython.core.debugger import Tracer; Tracer()()
+core_smoke = QtCore.__binding__.smoke
+gui_smoke = QtGui.__binding__.smoke
 
-#dbg()
 qapp = QtGui.QApplication(['foo'])
+
 
 def pm(meth):
     print(meth, meth.cls._classdef, meth._methoddef, meth.binding, meth.cls.binding)
+
+
 
 class SmokeTestCase(unittest.TestCase):
     def setUp(self):

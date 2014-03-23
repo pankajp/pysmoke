@@ -3,6 +3,9 @@ from os.path import dirname, join
 import sys
 import cffi
 
+def dbg():
+    from IPython.core.debugger import Tracer; Tracer()()
+
 ffi = cffi.FFI()
 
 def get_api(name):
@@ -36,7 +39,13 @@ def pyunicode(charp):
 
 if sys.version_info[0] > 2:
     pystring = pyunicode
+    def charp(s):
+        if isinstance(s, str):
+            s = s.encode('utf8')
+        return ffi.new('char[]', s)
 else:
     pystring = pybytes
+    def charp(s):
+        return ffi.new('char[]', s)
 
 
