@@ -1,0 +1,20 @@
+language: python
+python:
+  - "2.7"
+  - "3.3"
+  - "pypy"
+# command to install dependencies
+before_install:
+  - sudo apt-get update -qq
+  - sudo apt-get install -qq libsmokeqt4-dev xvfb
+  - "export DISPLAY=:99.0"
+  - "sh -e /etc/init.d/xvfb start"
+install:
+  - pip install -r requirements.txt
+  - cmake .
+  - make
+  - pip install .
+# command to run tests
+script:
+  - nosetests
+

@@ -1,0 +1,8 @@
+/build/
+/.idea/
+/.kdev4/
+*~
+*.pyc
+__pycache__/
+CMakeFiles/
+*.so
