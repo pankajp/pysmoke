@@ -1,6 +1,9 @@
 PySmoke
 -------
 
+.. image:: https://travis-ci.org/pankajp/pysmoke.svg?branch=master
+   :target: https://travis-ci.org/pankajp/pysmoke
+
 This project is a python binding to the Smoke library, which is a C++
 library to make it simpler to create bindings for C++ libraries
 in other languages. Smoke is developed by KDE developers and
