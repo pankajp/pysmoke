@@ -25,7 +25,8 @@ def CModuleIndex(smokec, index):
 def get_args(*args):
     cargs = Args(len(args)+1)
     for i, arg in enumerate(args):
-        if isinstance(arg, ffi.CData) and ffi.typeof(arg).item.cname.startswith('StackItem'):
+        # FIXME: better check for StackItem
+        if isinstance(arg, ffi.CData) and 'StackItem' in ffi.typeof(arg).item.cname:
             cargs[i+1].s_double = arg.s_double
         else:
             cargs[i+1] = [arg]
