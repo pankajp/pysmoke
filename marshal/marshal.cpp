@@ -8,11 +8,13 @@
 #include "marshal.h"
 
 #include <QtCore/QString>
+#include <cstdlib>
+
 
 char * QString_to_utf8(void * qstr) {
     QString * qs = static_cast<QString*>(qstr);
     QByteArray text = qs->toUtf8();
-    char *data = new char[text.size() + 1];
+    char *data = static_cast<char*>(malloc(text.size() + 1));
     strcpy(data, text.data());
     return data;
 }

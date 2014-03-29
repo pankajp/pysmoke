@@ -16,5 +16,5 @@ install:
   - pip install .
 # command to run tests
 script:
-  - nosetests
-
+  - # Segfaults with pypy if jit is enabled
+  - if [ "$TRAVIS_PYTHON_VERSION" = "pypy" ]; then python --jit off -m nose ; else nosetests; fi
