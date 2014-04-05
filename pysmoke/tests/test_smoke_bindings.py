@@ -42,6 +42,15 @@ class SmokeTestCase(unittest.TestCase):
         qaname = qapp.objectName()
         self.assertEqual(qaname, u'foo')
 
+    def test_static_method(self):
+        qapp.setApplicationName('foo')
+        self.assertEqual(qapp.applicationName(), 'foo')
+        self.assertEqual(QApplication.applicationName(), 'foo')
+
+        QApplication.setApplicationName('bar')
+        self.assertEqual(qapp.applicationName(), 'bar')
+        self.assertEqual(QApplication.applicationName(), 'bar')
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -25,10 +25,13 @@ def main():
     #dbg()
     qapp = QtGui.QApplication(['hello_smoke_app'])
     print('application args', QtGui.QApplication.arguments())
+    print('application args', qapp.arguments())
     #print('application name', QtGui.QApplication.applicationName())
     #print('application filepath', QtGui.QApplication.applicationFilePath())
     w = QtGui.QWidget()
+    w.setObjectName('main QWidget window')
     print(w.__cval__.value.s_voidp)
+    #dbg()
     b = QtGui.QPushButton('yahoo', w)
     b2 = QtGui.QLineEdit()
     b2.setParent(w)
@@ -39,7 +42,7 @@ def main():
     w.setLayout(layout)
     #w.setWindowTitle('Hello, Widget!!!')
     w.show()
-    getattr(QtGui.QApplication, 'exec')()
+    qapp.exec_()
 
 if __name__ == '__main__':
     main()

@@ -307,7 +307,7 @@ class ClassDef(object):
     def call(self, meth_name, inst, args, kwds):
         meth = self.find_method_by_args(meth_name, args, kwds)
         if meth is None:
-            raise AttributeError('no suitable method: %s of %s: %s,%s' % (meth_name, self, args, kwds))
+            raise ValueError('Invalid arguments for method: %s of %s: %s,%s' % (meth_name, self, args, kwds))
         return meth.call(inst, *args, **kwds)
 
     def call_method(self, meth, inst, args, kwds):

@@ -1,8 +1,13 @@
 from __future__ import print_function, absolute_import
 
 import importlib
+import keyword
 
-from .smoke import Smoke, Binding, smokec, bindings, Type, TypedValue
+from .smoke import Smoke, Binding, smokec, bindings, Type, TypedValue, dbg
+
+
+KWMAP = {kw+'_':kw for kw in keyword.kwlist + [
+    'print', 'exec']} # For the benefit of python3
 
 
 def qtcore_smoke():
@@ -19,56 +24,6 @@ binding_map = {'qtcore':qtcore_smoke,
                }
 
 
-class SmokeMethodDescr(object):
-    __slots__ = ('cls', 'name', 'static')
-
-    def __init__(self, cls, meth):
-        self.cls = cls
-        self.name = meth
-        self.static = cls.__classdef__.is_static_method(meth)
-
-    def __get__(self, obj, typ=None):
-        call = typ.__classdef__.call
-        print('get methdescr:', obj, typ, self.cls, self.name, self.static)
-        if self.static:
-            def method(*args, **kwds):
-                # FIXME: check static method.
-                ret = call(self.name, typ, args, kwds)
-                return ret
-        elif obj is None:
-            # unbound method attached to class
-            def method(inst, *args, **kwds):
-                # FIXME: check static method.
-                sargs = []
-                for arg in args:
-                    if isinstance(arg, SmokeClass):
-                        sargs.append(arg.__cval__)
-                    else:
-                        sargs.append(arg)
-                if inst == typ:
-                    ret = call(self.name, inst, sargs, kwds)
-                else:
-                    ret = call(self.name, inst.__cval__, sargs, kwds)
-                    print('rett:', ret, type(ret), TypedValue, type(ret) == TypedValue)
-                    if isinstance(ret, TypedValue):
-                        if ret.typ.cls is not None:
-                            retcls = SmokeMetaClass.get_class(ret.typ.cls.name, ret.typ.cls.binding)
-                            print('retcls:', retcls)
-                            retobj = retcls.__new__()
-                            retobj.__cval__ = ret
-                            ret = retobj
-                print('ret:', self.name, ret, inst, args)
-                return ret
-        else:
-            # bound method attached to obj
-            def method(*args, **kwds):
-                ret = call(self.name, obj, args, kwds)
-                return ret
-
-        method.__name__ = self.name
-        return method
-
-
 class SmokeMetaClass(type):
     __classes_map__ = {}
 
@@ -76,19 +31,62 @@ class SmokeMetaClass(type):
         print('creating cls', cls.__name__, name)
         cls.__classdef__ = Binding.find_class(name)
 
-    @staticmethod
-    def _get_method(cls, name, static=False):
+    @classmethod
+    def _get_inst(metacls, inst):
+        if isinstance(inst, SmokeClass):
+            inst = inst.__cval__
+        return inst
+
+    @classmethod
+    def _get_sargs(metacls, args):
+        sargs = []
+        for arg in args:
+            if isinstance(arg, SmokeClass):
+                sargs.append(arg.__cval__)
+            else:
+                sargs.append(arg)
+        return sargs
+
+    @classmethod
+    def _get_retval(metacls, ret):
+        if isinstance(ret, TypedValue):
+            if ret.typ.cls is not None:
+                retcls = SmokeMetaClass.get_class(ret.typ.cls.name, ret.typ.cls.binding)
+                print('retcls:', retcls)
+                retobj = retcls.__new__(retcls)
+                retobj.__cval__ = ret
+                ret = retobj
+        return ret
+
+    @classmethod
+    def _get_method(metacls, cls, name):
         call = cls.__classdef__.call
+        constructor = name == cls.__name__
         def method(inst, *args, **kwds):
+            args = metacls._get_sargs(args)
+            inst = metacls._get_inst(inst)
             ret = call(name, inst, args, kwds)
+            if not constructor:
+                ret = metacls._get_retval(ret)
             return ret
         method.__name__ = cls.__name__ + '.' + name
+        if constructor:
+            method = staticmethod(method)
+        elif cls.__classdef__.is_static_method(name):
+            method = classmethod(method)
         return method
 
     def __getattr__(cls, name):
         #clsdef = super(SmokeClass, self).__getattribute__('__classdef__')
         print('SMC getattr:', cls, name)
-        ret = SmokeMethodDescr(cls, name)
+        try:
+            ret = cls._get_method(cls, name)
+        except AttributeError:
+            # Handle renamed functions like exec -> exec_
+            if name in KWMAP:
+                ret = cls._get_method(cls, KWMAP[name])
+            else:
+                raise
         setattr(cls, name, ret)
         return getattr(cls, name)
 
@@ -108,7 +106,7 @@ class SmokeMetaClass(type):
             return ret
 
     @classmethod
-    def wrap_cdata(self, typ, cdata):
+    def wrap_cdata(metacls, typ, cdata):
         ret = typ.cls.__new__(typ.cls)
         return ret
 
@@ -135,7 +133,6 @@ class SmokeClass(SmokeSuperClass):
         print('SC getattr:', self, name)
         cls = type(self)
         ret = getattr(cls, name)
-        setattr(cls, name, ret)
         return getattr(self, name)
 
 
