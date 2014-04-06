@@ -252,21 +252,20 @@ class ClassDef(object):
         match = None
         # FIXME: Find best matching method instead of first match
         match_score = -1
-        for method in self.iter_methods():
+        for method in self.iter_methods(name):
             #print(method.name, name)
-            if method.name == name:
-                meth_args = method.args
-                #print(len(meth_args), len(args))
-                if len(meth_args) != len(args):
-                    continue
-                for i, arg in enumerate(args):
-                    if not self.binding.is_compatible_type(meth_args[i], arg):
-                        break
-                else:
-                    match = method
-                    return match
-                    continue
-                break
+            meth_args = method.args
+            #print(len(meth_args), len(args))
+            if len(meth_args) != len(args):
+                continue
+            for i, arg in enumerate(args):
+                if not self.binding.is_compatible_type(meth_args[i], arg):
+                    break
+            else:
+                match = method
+                return match
+                continue
+            break
 
     def find_munged_names(self, name):
         namemid = smokec.Smoke_idMethodName(self._smoke, name.encode('ascii'))
@@ -285,18 +284,19 @@ class ClassDef(object):
             mnames.update(base.find_munged_names(name))
         return list(mnames)
 
-    def iter_methods(self, inherited=True):
+    def iter_methods(self, name=None, inherited=True):
         csmoke = self._smoke
         clsidx = self._index
         methods = smokec.Smoke_methods(csmoke)
         for i in range(1, smokec.Smoke_numMethods(csmoke)):
             if methods[i].classId == clsidx:
                 cmi = CModuleIndex(csmoke, i)
-                yield MethodDef(self.binding, cmi)
-
+                meth = MethodDef(self.binding, cmi)
+                if name is None or meth.name == name:
+                    yield meth
         if inherited:
             for base in self.bases:
-                for meth in base.iter_methods():
+                for meth in base.iter_methods(name):
                     yield meth
 
     def call(self, meth_name, inst, args, kwds):
