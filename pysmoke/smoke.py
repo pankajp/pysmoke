@@ -3,7 +3,7 @@ from __future__ import print_function, absolute_import
 import sys
 import warnings
 
-from ._smoke import ffi, smokec, bindings, pystring, dbg, charp
+from ._smoke import ffi, smokec, bindings, pystring, dbg, charp, pybytes
 from . import marshal
 
 
@@ -556,6 +556,15 @@ class Converter(object):
                       typ.typ_name)
             else:
                 return conv.to_py(obj)
+        if typ.name in ('const char*', 'char*'):
+            ptr = obj
+            if ffi.typeof(obj) in [ffi.typeof('StackItem*'), ffi.typeof('StackItem[]')]:
+                ptr = obj.s_voidp
+            if ptr == ffi.NULL:
+                print('null string received')
+                return b''
+            ret = pybytes(ptr)
+            return ret
         #from IPython.core.debugger import Tracer; Tracer()()
         #print('could not convert to py:', obj, typ)
         not_implemented('could not convert to py: %s, %s'%( obj, typ))
@@ -592,6 +601,11 @@ class Converter(object):
         if isinstance(obj, TypedValue):
             # FIXME: cast/check compatibility of the two types
             obj = obj.value
+        if typ.name in ('const char*', 'char*'):
+            if isinstance(obj, unicode):
+                obj = obj.encode('utf8')
+            charp = ffi.new('char[]', obj)
+            return charp
         if not isinstance(obj, ffi.CData):
             print('could not convert from py:', obj, typ)
         return obj
