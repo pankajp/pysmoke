@@ -299,11 +299,6 @@ class ClassDef(object):
                 for meth in base.iter_methods():
                     yield meth
 
-    def is_static_method(self, name):
-        for meth in self.find_method(name, munged=False):
-            return meth.is_static
-        raise AttributeError('no such method: %s of %s' % (name, self))
-
     def call(self, meth_name, inst, args, kwds):
         meth = self.find_method_by_args(meth_name, args, kwds)
         if meth is None:
