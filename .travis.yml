@@ -17,4 +17,4 @@ install:
 # command to run tests
 script:
   - # Segfaults with pypy if jit is enabled
-  - if [ "$TRAVIS_PYTHON_VERSION" = "pypy" ]; then python --jit off -m nose ; else nosetests; fi
+  - if [ "$TRAVIS_PYTHON_VERSION" = "pypy" ]; then python --jit off -m unittest discover ; else python -m unittest discover; fi
