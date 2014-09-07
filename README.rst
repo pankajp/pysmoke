@@ -46,6 +46,8 @@ and provide binary eggs for various platforms.
 Usage
 ~~~~~
 
+::
+
     from pysmoke.QtCore import SIGNAL, SLOT
     from pysmoke import QtGui
     qapp = QtGui.QApplication(['Hello, PySmoke!!!'])
