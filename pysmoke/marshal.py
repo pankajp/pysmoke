@@ -33,7 +33,9 @@ class QString(object):
     @classmethod
     def to_py(cls, obj):
         ptr = obj
-        if ffi.typeof(obj) in [ffi.typeof('StackItem*'), ffi.typeof('StackItem[]')]:
+        if ffi.typeof(obj) in [ffi.typeof('StackItem*'),
+                               ffi.typeof('StackItem[]'),
+                               ffi.typeof('union StackItem')]:
             ptr = obj.s_voidp
         if ptr == ffi.NULL:
             print('null string received')

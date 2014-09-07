@@ -43,6 +43,18 @@ In future we may improve the installation process to be more flexible
 and provide binary eggs for various platforms.
 
 
+Usage
+~~~~~
+
+    from pysmoke.QtCore import SIGNAL, SLOT
+    from pysmoke import QtGui
+    qapp = QtGui.QApplication(['Hello, PySmoke!!!'])
+    b = QtGui.QPushButton()
+    b.setText('Exit App')
+    b.show()
+    qapp.connect(b, SIGNAL('clicked()'), SLOT('quit()'))
+    qapp.exec_()
+
 Contributing
 ------------
 

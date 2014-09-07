@@ -11,7 +11,8 @@ import sys
 from os.path import dirname
 sys.path.append(dirname(dirname(__file__)))
 
-from pysmoke import QtCore, QtGui
+from pysmoke import QtGui
+from pysmoke.QtCore import SIGNAL, SLOT
 
 
 def main():
@@ -31,8 +32,8 @@ def main():
     b2.setText('set window title here')
     # Signals and slots need '2' and '1' as prefix for Qt to connect
     res = w.connect(b2,
-                    QtCore.SIGNAL('textChanged(QString)'),
-                    QtCore.SLOT('setWindowTitle(QString)'))
+                    SIGNAL('textChanged(QString)'),
+                    SLOT('setWindowTitle(QString)'))
     print(res)
     layout = QtGui.QVBoxLayout()
     layout.addWidget(b)
@@ -40,6 +41,13 @@ def main():
     w.setLayout(layout)
     #w.setWindowTitle('Hello, Widget!!!')
     w.show()
+
+    b = QtGui.QPushButton()
+    b.setText('Exit App')
+    qapp.connect(b, SIGNAL('clicked()'), SLOT('quit()'))
+    b.show()
+    qapp.exec_()
+
     qapp.exec_()
 
 if __name__ == '__main__':
