@@ -16,6 +16,4 @@ add_subdirectory(smokec)
 add_subdirectory(examples)
 add_subdirectory(bindings)
 add_subdirectory(include)
-add_subdirectory(pysmoke)
-
 add_subdirectory(marshal)

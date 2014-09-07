@@ -2,11 +2,12 @@ from __future__ import print_function, absolute_import
 
 
 from pysmoke.smoke import Args, ffi
-from pysmoke.smokebindings import SmokeClass, SmokeMetaClass, QtGui, QtCore
+from pysmoke.smokebindings import SmokeClass, SmokeMetaClass
+from .. import QtGui
 
 
-class QApplication(SmokeMetaClass.get_class('QCoreApplication',
-                                            QtCore.__binding__)):
+class QApplication(SmokeMetaClass.get_class('QApplication',
+                                            QtGui.__binding__)):
 
     def __init__(self, argv):
         print('QA args', argv)
@@ -18,9 +19,7 @@ class QApplication(SmokeMetaClass.get_class('QCoreApplication',
         self._cargs = [ffi.new('char[]', arg) for arg in self._args]
         self._cargv = ffi.new('char *[]', self._cargs)
         args[2].s_voidp = self._cargv
-        # This is calling QCoreApplication() instead of QApplication()
-        #super(QApplication, self).__init__(argn, self._cargv)
-        self.__cval__ = self.__classdef__.call('QApplication', None, [argn, self._cargv], {})
+        self.__cval__ = self.__classdef__.call(self.__classdef__.name, None, [argn, self._cargv], {})
         type(self)._instance = self
 
     @classmethod

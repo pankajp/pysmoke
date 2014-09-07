@@ -4,11 +4,10 @@ import random
 import unittest
 
 from pysmoke.smoke import ffi, Type, TypedValue, pystring, smokec, not_implemented, charp, dbg
-from pysmoke.smokebindings import qtcore_smoke, qtgui_smoke, QtCore, QtGui
+from pysmoke import QtCore, QtGui
 
-
-qtcore = qtcore_smoke()
-qtgui = qtgui_smoke()
+qtcore = QtCore.__binding__
+qtgui = QtGui.__binding__
 arg = ['foo']
 qapp = QtGui.QApplication(arg)
 

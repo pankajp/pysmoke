@@ -2,26 +2,14 @@ from __future__ import print_function, absolute_import
 
 import importlib
 import keyword
+import sys
+from types import ModuleType
 
 from .smoke import Smoke, Binding, smokec, bindings, Type, TypedValue, dbg
 
 
 KWMAP = {kw+'_':kw for kw in keyword.kwlist + [
     'print', 'exec']} # For the benefit of python3
-
-
-def qtcore_smoke():
-    return Binding.get_binding(bindings.qtcore_CSmoke().smoke)
-
-
-def qtgui_smoke():
-    return Binding.get_binding(bindings.qtgui_CSmoke().smoke)
-
-
-
-binding_map = {'qtcore':qtcore_smoke,
-               'qtgui':qtgui_smoke,
-               }
 
 
 class SmokeMethodDescr(object):
@@ -156,8 +144,9 @@ class SmokeMetaClass(type):
         if name in metacls.__classes_map__:
             return metacls.__classes_map__[name]
         else:
+            # from IPython.core.debugger import Tracer; Tracer()()
             ret = metacls(name, (SmokeClass,), {})
-            ret.__module__ += '.' + binding.name
+            ret.__module__ = binding.name
             print('get_class:', name, ret, ret.__module__)
             metacls.__classes_map__[name] = ret
             return ret
@@ -204,18 +193,18 @@ class SmokeClassDescr(object):
             pass
 
 
-class SmokeModule(object):
-    __binding_map__ = {}
-    def __init__(self, binding):
+class SmokeModule(ModuleType):
+    def __init__(self, binding, package):
         self.__binding__ = binding
+        self.__pkg__ = package
+        super(SmokeModule, self).__init__(package)
 
     def __getattr__(self, name):
         binding = self.__binding__
         # TODO: Return overridden class
-        print('cls_mod', __package__)
+        print('cls_mod', self.__pkg__)
         try:
-            cls_mod = importlib.import_module('.%s.%s' % (self.__binding__.name, name),
-                                              __package__)
+            cls_mod = importlib.import_module('%s.%s' % (self.__pkg__, name))
             cls_mod.__package__ = __package__ + '.' + self.__binding__.name
         except ImportError as e:
             print('e')
@@ -223,21 +212,15 @@ class SmokeModule(object):
         else:
             cls = getattr(cls_mod, name)
             cls.__module__ = cls_mod.__package__
+            pkg = sys.modules[self.__pkg__]
+            # Setattr needed because import mechanism automatically sets
+            # the module attribute on parent module
+            setattr(pkg, name, cls)
             return cls
 
     @classmethod
-    def get_module(cls, name):
-        if name in cls.__binding_map__:
-            return cls.__binding_map__[name]
-        else:
-            binding = binding_map[name]()
-            ret = cls(binding)
-            cls.__binding_map__[name] = ret
-            return ret
-
-
-
-QtCore = SmokeModule.get_module('qtcore')
-QtGui = SmokeModule.get_module('qtgui')
+    def get_module(cls, binding, pkg):
+        mod = cls(binding, pkg)
+        return mod
 
 

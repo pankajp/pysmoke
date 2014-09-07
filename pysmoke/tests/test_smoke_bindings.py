@@ -3,7 +3,7 @@ from __future__ import print_function, absolute_import
 import unittest
 
 from pysmoke.smoke import ffi, Type, TypedValue
-from pysmoke.smokebindings import QtCore, QtGui
+from pysmoke import QtCore, QtGui
 
 QApplication = QtGui.QApplication
 
