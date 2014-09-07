@@ -12,13 +12,10 @@ from os.path import dirname
 sys.path.append(dirname(dirname(__file__)))
 
 from pysmoke.smoke import Args, ffi
-from pysmoke.smokebindings import qtcore_smoke, qtgui_smoke
-# Can add a higher level module for things such as
-# from qtsmoke import QtCore, QtGui
-# The bindings here are at a lower level.
+from pysmoke import QtCore, QtGui
 
-qtcore = qtcore_smoke()
-qtgui = qtgui_smoke()
+qtcore = QtCore.__binding__
+qtgui = QtGui.__binding__
 
 
 def main():

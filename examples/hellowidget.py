@@ -11,14 +11,7 @@ import sys
 from os.path import dirname
 sys.path.append(dirname(dirname(__file__)))
 
-from pysmoke.smoke import Args, ffi, dbg
-from pysmoke.smokebindings import qtcore_smoke, qtgui_smoke, QtCore, QtGui
-# Can add a higher level module for things such as
-# from qtsmoke import QtCore, QtGui
-# The bindings here are at a lower level.
-
-qtcore = qtcore_smoke()
-qtgui = qtgui_smoke()
+from pysmoke import QtCore, QtGui
 
 
 def main():
@@ -37,7 +30,9 @@ def main():
     b2.setParent(w)
     b2.setText('set window title here')
     # Signals and slots need '2' and '1' as prefix for Qt to connect
-    res = w.connect(b2, '2'+'textChanged(QString)', '1'+'setWindowTitle(QString)')
+    res = w.connect(b2,
+                    QtCore.SIGNAL('textChanged(QString)'),
+                    QtCore.SLOT('setWindowTitle(QString)'))
     print(res)
     layout = QtGui.QVBoxLayout()
     layout.addWidget(b)
